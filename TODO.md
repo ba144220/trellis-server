@@ -13,6 +13,19 @@ conda activate trellis
 
 # Run a simple example
 ```bash
-python example.py
+CUDA_VISIBLE_DEVICES=1 python example.py
 ```
+I'm assigned to use GPU 1.
+
+# Plans
+
+## Increase batch size
+My colleague said that they were able to run two processes in parallel but not three. However, these two processes both copy the same model weights to the GPU, so I think we can instead increase the batch size of the pipeline.
+
+But before we do that, we need to make sure that
+1. Is the pipeline compute-bound or memory-bound?
+
+
+## Quantization
+My colleague said they tried to quantize the model, but it only improved accuracy by a small amount.
 
