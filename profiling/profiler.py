@@ -1,5 +1,5 @@
 """
-Profiling utilities for tracking time, GPU memory, and GPU utilization.
+Profiling utilities for tracking time, GPU memory, GPU utilization, and CPU usage.
 """
 
 import time
@@ -10,6 +10,7 @@ import json
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
+import os
 
 
 @dataclass
@@ -24,13 +25,16 @@ class StageMetrics:
     gpu_utilization_max: float      # Max GPU utilization during stage
     gpu_memory_used_mean_mb: float  # Mean GPU memory used (from nvidia-smi)
     gpu_memory_used_max_mb: float   # Max GPU memory used (from nvidia-smi)
+    cpu_utilization_mean: float     # Mean CPU utilization during stage
+    cpu_utilization_max: float      # Max CPU utilization during stage
+    cpu_memory_used_mean_mb: float  # Mean CPU memory used (RSS)
     
     def to_dict(self):
         return asdict(self)
 
 
-class GPUMonitor:
-    """Background thread to monitor GPU utilization and memory"""
+class ResourceMonitor:
+    """Background thread to monitor GPU and CPU utilization and memory"""
     
     def __init__(self, device_id: int = 0, interval: float = 0.1):
         self.device_id = device_id
@@ -39,9 +43,12 @@ class GPUMonitor:
         self.thread = None
         self.gpu_utilizations: List[float] = []
         self.gpu_memory_used: List[float] = []  # In MB
+        self.cpu_utilizations: List[float] = []  # Overall CPU %
+        self.cpu_memory_used: List[float] = []   # Process RSS in MB
+        self.pid = os.getpid()
         
     def _monitor(self):
-        """Monitor GPU in background thread"""
+        """Monitor GPU and CPU in background thread"""
         while self.running:
             try:
                 # Query nvidia-smi for GPU utilization and memory
@@ -61,7 +68,36 @@ class GPUMonitor:
                     util, mem = output.split(',')
                     self.gpu_utilizations.append(float(util))
                     self.gpu_memory_used.append(float(mem))
-            except Exception as e:
+            except Exception:
+                pass  # Silently ignore errors
+            
+            try:
+                # Get CPU usage via /proc/stat for overall system
+                with open('/proc/stat', 'r') as f:
+                    cpu_line = f.readline()
+                    cpu_times = [int(x) for x in cpu_line.split()[1:]]
+                    total_time = sum(cpu_times)
+                    idle_time = cpu_times[3]  # idle time is 4th field
+                    
+                    if hasattr(self, '_last_total_time'):
+                        total_delta = total_time - self._last_total_time
+                        idle_delta = idle_time - self._last_idle_time
+                        if total_delta > 0:
+                            cpu_percent = 100.0 * (1.0 - idle_delta / total_delta)
+                            self.cpu_utilizations.append(cpu_percent)
+                    
+                    self._last_total_time = total_time
+                    self._last_idle_time = idle_time
+                
+                # Get process memory usage
+                with open(f'/proc/{self.pid}/status', 'r') as f:
+                    for line in f:
+                        if line.startswith('VmRSS:'):
+                            # VmRSS is in KB, convert to MB
+                            mem_kb = int(line.split()[1])
+                            self.cpu_memory_used.append(mem_kb / 1024.0)
+                            break
+            except Exception:
                 pass  # Silently ignore errors
             
             time.sleep(self.interval)
@@ -71,6 +107,11 @@ class GPUMonitor:
         self.running = True
         self.gpu_utilizations = []
         self.gpu_memory_used = []
+        self.cpu_utilizations = []
+        self.cpu_memory_used = []
+        # Initialize CPU tracking
+        self._last_total_time = 0
+        self._last_idle_time = 0
         self.thread = threading.Thread(target=self._monitor, daemon=True)
         self.thread.start()
     
@@ -80,20 +121,30 @@ class GPUMonitor:
         if self.thread:
             self.thread.join(timeout=2)
         
-        if len(self.gpu_utilizations) == 0:
-            return {
-                'utilization_mean': 0.0,
-                'utilization_max': 0.0,
-                'memory_used_mean_mb': 0.0,
-                'memory_used_max_mb': 0.0
-            }
-        
-        return {
-            'utilization_mean': sum(self.gpu_utilizations) / len(self.gpu_utilizations),
-            'utilization_max': max(self.gpu_utilizations),
-            'memory_used_mean_mb': sum(self.gpu_memory_used) / len(self.gpu_memory_used),
-            'memory_used_max_mb': max(self.gpu_memory_used)
+        stats = {
+            'gpu_utilization_mean': 0.0,
+            'gpu_utilization_max': 0.0,
+            'gpu_memory_used_mean_mb': 0.0,
+            'gpu_memory_used_max_mb': 0.0,
+            'cpu_utilization_mean': 0.0,
+            'cpu_utilization_max': 0.0,
+            'cpu_memory_used_mean_mb': 0.0
         }
+        
+        if len(self.gpu_utilizations) > 0:
+            stats['gpu_utilization_mean'] = sum(self.gpu_utilizations) / len(self.gpu_utilizations)
+            stats['gpu_utilization_max'] = max(self.gpu_utilizations)
+            stats['gpu_memory_used_mean_mb'] = sum(self.gpu_memory_used) / len(self.gpu_memory_used)
+            stats['gpu_memory_used_max_mb'] = max(self.gpu_memory_used)
+        
+        if len(self.cpu_utilizations) > 0:
+            stats['cpu_utilization_mean'] = sum(self.cpu_utilizations) / len(self.cpu_utilizations)
+            stats['cpu_utilization_max'] = max(self.cpu_utilizations)
+        
+        if len(self.cpu_memory_used) > 0:
+            stats['cpu_memory_used_mean_mb'] = sum(self.cpu_memory_used) / len(self.cpu_memory_used)
+        
+        return stats
 
 
 class Profiler:
@@ -114,7 +165,7 @@ class Profiler:
         
         # Use nvidia_smi_device_id for monitoring if provided, otherwise use device_id
         monitor_device_id = nvidia_smi_device_id if nvidia_smi_device_id is not None else device_id
-        self.monitor = GPUMonitor(device_id=monitor_device_id)
+        self.monitor = ResourceMonitor(device_id=monitor_device_id)
         
         # Initialize CUDA by setting device and doing a dummy operation
         if torch.cuda.is_available():
@@ -168,10 +219,13 @@ class Profiler:
                 gpu_memory_allocated_mb=memory_allocated,
                 gpu_memory_reserved_mb=memory_reserved,
                 gpu_memory_peak_mb=memory_peak,
-                gpu_utilization_mean=monitor_stats['utilization_mean'],
-                gpu_utilization_max=monitor_stats['utilization_max'],
-                gpu_memory_used_mean_mb=monitor_stats['memory_used_mean_mb'],
-                gpu_memory_used_max_mb=monitor_stats['memory_used_max_mb']
+                gpu_utilization_mean=monitor_stats['gpu_utilization_mean'],
+                gpu_utilization_max=monitor_stats['gpu_utilization_max'],
+                gpu_memory_used_mean_mb=monitor_stats['gpu_memory_used_mean_mb'],
+                gpu_memory_used_max_mb=monitor_stats['gpu_memory_used_max_mb'],
+                cpu_utilization_mean=monitor_stats['cpu_utilization_mean'],
+                cpu_utilization_max=monitor_stats['cpu_utilization_max'],
+                cpu_memory_used_mean_mb=monitor_stats['cpu_memory_used_mean_mb']
             )
             
             self.stages.append(metrics)
@@ -185,11 +239,16 @@ class Profiler:
             print(f"    - Reserved: {memory_reserved:.2f} MB")
             print(f"    - Peak: {memory_peak:.2f} MB")
             print(f"  GPU Utilization:")
-            print(f"    - Mean: {monitor_stats['utilization_mean']:.1f}%")
-            print(f"    - Max: {monitor_stats['utilization_max']:.1f}%")
+            print(f"    - Mean: {monitor_stats['gpu_utilization_mean']:.1f}%")
+            print(f"    - Max: {monitor_stats['gpu_utilization_max']:.1f}%")
             print(f"  GPU Memory (nvidia-smi):")
-            print(f"    - Mean: {monitor_stats['memory_used_mean_mb']:.2f} MB")
-            print(f"    - Max: {monitor_stats['memory_used_max_mb']:.2f} MB")
+            print(f"    - Mean: {monitor_stats['gpu_memory_used_mean_mb']:.2f} MB")
+            print(f"    - Max: {monitor_stats['gpu_memory_used_max_mb']:.2f} MB")
+            print(f"  CPU Utilization:")
+            print(f"    - Mean: {monitor_stats['cpu_utilization_mean']:.1f}%")
+            print(f"    - Max: {monitor_stats['cpu_utilization_max']:.1f}%")
+            print(f"  CPU Memory (Process RSS):")
+            print(f"    - Mean: {monitor_stats['cpu_memory_used_mean_mb']:.2f} MB")
             print(f"{'-'*60}")
     
     def get_summary(self) -> Dict:
@@ -221,19 +280,35 @@ class Profiler:
         print(f"\nTotal Time: {total_time:.2f} seconds\n")
         
         # Table header
-        print(f"{'Stage':<30} {'Time(s)':<10} {'%':<8} {'Peak Mem(MB)':<15} {'GPU Util(%)':<15} {'GPU Mem(MB)':<15}")
+        print(f"{'Stage':<30} {'Time(s)':<10} {'%':<8} {'Peak Mem(MB)':<15} {'GPU%':<10} {'CPU%':<10} {'Type':<12}")
         print(f"{'-'*100}")
         
         # Table rows
         for stage in self.stages:
             percent = (stage.time_seconds / total_time * 100)
+            
+            # Determine bottleneck type
+            gpu_util = stage.gpu_utilization_mean
+            cpu_util = stage.cpu_utilization_mean
+            if gpu_util > 60 and gpu_util > cpu_util:
+                bottleneck_type = "GPU-bound"
+            elif cpu_util > 60 and cpu_util > gpu_util:
+                bottleneck_type = "CPU-bound"
+            elif gpu_util > 30 and cpu_util > 30:
+                bottleneck_type = "Mixed"
+            elif gpu_util < 30 and cpu_util < 30:
+                bottleneck_type = "I/O-bound?"
+            else:
+                bottleneck_type = "Unknown"
+            
             print(
                 f"{stage.name:<30} "
                 f"{stage.time_seconds:<10.2f} "
                 f"{percent:<8.1f} "
                 f"{stage.gpu_memory_peak_mb:<15.1f} "
-                f"{stage.gpu_utilization_mean:<15.1f} "
-                f"{stage.gpu_memory_used_mean_mb:<15.1f}"
+                f"{gpu_util:<10.1f} "
+                f"{cpu_util:<10.1f} "
+                f"{bottleneck_type:<12}"
             )
         
         print(f"{'-'*100}")

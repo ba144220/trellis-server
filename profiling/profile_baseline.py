@@ -169,11 +169,18 @@ def main():
     if not os.path.exists(profiling_dir):
         os.makedirs(profiling_dir)
     
-    # Load pipeline
-    print("Loading pipeline...")
-    with profiler.profile_stage("0. Load Pipeline"):
-        pipeline = TrellisImageTo3DPipeline.from_pretrained("microsoft/TRELLIS-image-large")
-        pipeline.cuda()
+    # Record GPU memory BEFORE loading the model (this is the true baseline)
+    initial_gpu_memory_mb = torch.cuda.memory_allocated(profiler.device) / (1024 ** 2)
+    print(f"Initial GPU Memory (before loading model): {initial_gpu_memory_mb:.2f} MB")
+    
+    # Load pipeline (not profiled - one-time cost)
+    print("Loading pipeline (one-time cost, not profiled)...")
+    pipeline = TrellisImageTo3DPipeline.from_pretrained("microsoft/TRELLIS-image-large")
+    pipeline.cuda()
+    model_gpu_memory_mb = torch.cuda.memory_allocated(profiler.device) / (1024 ** 2)
+    print(f"GPU Memory after loading model: {model_gpu_memory_mb:.2f} MB")
+    print(f"Model weights size: {model_gpu_memory_mb - initial_gpu_memory_mb:.2f} MB")
+    print("Pipeline loaded successfully.")
     
     print(f"\nProcessing image: {image_path}")
     
@@ -207,9 +214,31 @@ def main():
     profiler.print_summary()
     
     # Save detailed results to JSON
+    import json
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     json_filename = os.path.join(profiling_dir, f"profile_baseline_{timestamp}.json")
-    profiler.save_to_json(json_filename)
+    
+    # Add baseline memory metadata to the summary
+    summary = profiler.get_summary()
+    summary['baseline_memory_mb'] = initial_gpu_memory_mb
+    
+    # Save with metadata
+    with open(json_filename, 'w') as f:
+        json.dump(summary, f, indent=2)
+    print(f"Profiling results saved to: {json_filename}")
+    
+    # Generate visualization
+    print("\n" + "="*100)
+    print("Generating visualization...")
+    print("="*100)
+    try:
+        from profiling.plot_profile import plot_profiling_results
+        plot_file = os.path.join(profiling_dir, f"profile_visualization_{timestamp}.png")
+        plot_profiling_results(json_filename, plot_file)
+    except Exception as e:
+        print(f"Warning: Could not generate plot: {e}")
+        import traceback
+        traceback.print_exc()
     
     # Clean up
     del outputs
