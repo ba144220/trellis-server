@@ -7,6 +7,9 @@ os.environ['ATTN_BACKEND'] = 'flash-attn'   # Can be 'flash-attn' or 'xformers',
 os.environ['SPCONV_ALGO'] = 'native'        
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Internal dependencies
 import time
 import torch

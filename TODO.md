@@ -35,3 +35,21 @@ My colleague said they tried to quantize the model, but it only improved accurac
 For every feature or improvement, please add a log here. 
 - Keep the log in chronological order.
 - Keep the log concise and to the point.
+
+
+## 2025-10-17 - Baseline
+Process one image at a time.
+Time taken: 121.36 seconds
+
+## 2025-10-17 - Process multiple images in parallel
+First attempt is to simply run two pipelines in parallel.
+Time taken: 98.50 seconds
+
+The problem is that the two pipelines are copying the same model weights to the GPU, which is not efficient.
+
+The next attempt is just use one pipeline but spawn multiple workers to process the images.
+For 2 workers, time taken: 96.48 seconds
+For 3 workers, time taken: 90.98 seconds
+For 4 workers, time taken: 91.48 seconds
+
+But both GPU memory and utilization are not fully utilized.
