@@ -1,0 +1,139 @@
+{
+  "total_time_seconds": 39.80406713485718,
+  "stages": [
+    {
+      "name": "0. Load Pipeline",
+      "time_seconds": 23.128616333007812,
+      "gpu_memory_allocated_mb": 5466.37158203125,
+      "gpu_memory_reserved_mb": 5486.0,
+      "gpu_memory_peak_mb": 5466.37158203125,
+      "gpu_utilization_mean": 0.88268156424581,
+      "gpu_utilization_max": 66.0,
+      "gpu_memory_used_mean_mb": 6610.966480446928,
+      "gpu_memory_used_max_mb": 10001.0
+    },
+    {
+      "name": "1. Preprocess Image",
+      "time_seconds": 0.030958890914916992,
+      "gpu_memory_allocated_mb": 5466.37158203125,
+      "gpu_memory_reserved_mb": 5486.0,
+      "gpu_memory_peak_mb": 5466.37158203125,
+      "gpu_utilization_mean": 66.0,
+      "gpu_utilization_max": 66.0,
+      "gpu_memory_used_mean_mb": 10839.0,
+      "gpu_memory_used_max_mb": 10839.0
+    },
+    {
+      "name": "2. Encode Image (get_cond)",
+      "time_seconds": 0.14128994941711426,
+      "gpu_memory_allocated_mb": 5485.23095703125,
+      "gpu_memory_reserved_mb": 5588.0,
+      "gpu_memory_peak_mb": 5537.6689453125,
+      "gpu_utilization_mean": 31.0,
+      "gpu_utilization_max": 61.0,
+      "gpu_memory_used_mean_mb": 10898.0,
+      "gpu_memory_used_max_mb": 10953.0
+    },
+    {
+      "name": "3. Sample Sparse Structure",
+      "time_seconds": 1.9007062911987305,
+      "gpu_memory_allocated_mb": 5485.39453125,
+      "gpu_memory_reserved_mb": 6286.0,
+      "gpu_memory_peak_mb": 6181.734375,
+      "gpu_utilization_mean": 82.1875,
+      "gpu_utilization_max": 99.0,
+      "gpu_memory_used_mean_mb": 11044.25,
+      "gpu_memory_used_max_mb": 11053.0
+    },
+    {
+      "name": "4. Sample SLAT",
+      "time_seconds": 3.1746394634246826,
+      "gpu_memory_allocated_mb": 5485.8046875,
+      "gpu_memory_reserved_mb": 6502.0,
+      "gpu_memory_peak_mb": 5734.82666015625,
+      "gpu_utilization_mean": 41.48148148148148,
+      "gpu_utilization_max": 98.0,
+      "gpu_memory_used_mean_mb": 11862.407407407407,
+      "gpu_memory_used_max_mb": 11875.0
+    },
+    {
+      "name": "5. Decode SLAT",
+      "time_seconds": 0.33802342414855957,
+      "gpu_memory_allocated_mb": 20869.85205078125,
+      "gpu_memory_reserved_mb": 21148.0,
+      "gpu_memory_peak_mb": 20869.85205078125,
+      "gpu_utilization_mean": 51.333333333333336,
+      "gpu_utilization_max": 58.0,
+      "gpu_memory_used_mean_mb": 17965.666666666668,
+      "gpu_memory_used_max_mb": 24143.0
+    },
+    {
+      "name": "6. Postprocess Mesh",
+      "time_seconds": 3.33089017868042,
+      "gpu_memory_allocated_mb": 20858.8720703125,
+      "gpu_memory_reserved_mb": 21152.0,
+      "gpu_memory_peak_mb": 20930.0537109375,
+      "gpu_utilization_mean": 13.107142857142858,
+      "gpu_utilization_max": 84.0,
+      "gpu_memory_used_mean_mb": 26528.428571428572,
+      "gpu_memory_used_max_mb": 26545.0
+    },
+    {
+      "name": "7. Parametrize Mesh (UV mapping)",
+      "time_seconds": 0.7481899261474609,
+      "gpu_memory_allocated_mb": 20858.8720703125,
+      "gpu_memory_reserved_mb": 21152.0,
+      "gpu_memory_peak_mb": 20858.8720703125,
+      "gpu_utilization_mean": 0.0,
+      "gpu_utilization_max": 0.0,
+      "gpu_memory_used_mean_mb": 26529.0,
+      "gpu_memory_used_max_mb": 26529.0
+    },
+    {
+      "name": "8. Render Multiview",
+      "time_seconds": 0.7708940505981445,
+      "gpu_memory_allocated_mb": 20858.8720703125,
+      "gpu_memory_reserved_mb": 21388.0,
+      "gpu_memory_peak_mb": 21135.939453125,
+      "gpu_utilization_mean": 17.714285714285715,
+      "gpu_utilization_max": 31.0,
+      "gpu_memory_used_mean_mb": 26702.714285714286,
+      "gpu_memory_used_max_mb": 26801.0
+    },
+    {
+      "name": "9. Bake Texture",
+      "time_seconds": 6.22682523727417,
+      "gpu_memory_allocated_mb": 20858.8720703125,
+      "gpu_memory_reserved_mb": 25312.0,
+      "gpu_memory_peak_mb": 24692.63671875,
+      "gpu_utilization_mean": 36.18867924528302,
+      "gpu_utilization_max": 43.0,
+      "gpu_memory_used_mean_mb": 30332.849056603773,
+      "gpu_memory_used_max_mb": 30741.0
+    },
+    {
+      "name": "10. Create Final GLB",
+      "time_seconds": 0.013033390045166016,
+      "gpu_memory_allocated_mb": 20858.8720703125,
+      "gpu_memory_reserved_mb": 25312.0,
+      "gpu_memory_peak_mb": 20858.8720703125,
+      "gpu_utilization_mean": 0.0,
+      "gpu_utilization_max": 0.0,
+      "gpu_memory_used_mean_mb": 30725.0,
+      "gpu_memory_used_max_mb": 30725.0
+    }
+  ],
+  "breakdown_percent": {
+    "0. Load Pipeline": 58.10616350999379,
+    "1. Preprocess Image": 0.07777820997544671,
+    "2. Encode Image (get_cond)": 0.3549635994191759,
+    "3. Sample Sparse Structure": 4.7751559778026955,
+    "4. Sample SLAT": 7.97566603600814,
+    "5. Decode SLAT": 0.8492183047609877,
+    "6. Postprocess Mesh": 8.368215658453394,
+    "7. Parametrize Mesh (UV mapping)": 1.8796821028679676,
+    "8. Render Multiview": 1.9367218128397183,
+    "9. Bake Texture": 15.643690922783165,
+    "10. Create Final GLB": 0.0327438650955154
+  }
+}
