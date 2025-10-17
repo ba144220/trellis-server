@@ -29,3 +29,9 @@ But before we do that, we need to make sure that
 ## Quantization
 My colleague said they tried to quantize the model, but it only improved accuracy by a small amount.
 
+
+# Development Logs
+
+For every feature or improvement, please add a log here. 
+- Keep the log in chronological order.
+- Keep the log concise and to the point.
