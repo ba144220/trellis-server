@@ -160,7 +160,7 @@ def main():
     profiler = Profiler(device_id=0, nvidia_smi_device_id=1)
     
     # Test image - using just one image for detailed profiling
-    image_path = "assets/example_image/typical_vehicle_biplane.png"
+    image_path = "assets/example_image/T.png"
     output_dir = "outputs"
     profiling_dir = "profiling"
     

@@ -150,7 +150,7 @@ class ResourceMonitor:
 class Profiler:
     """Main profiler class"""
     
-    def __init__(self, device_id: int = 0, nvidia_smi_device_id: int = None):
+    def __init__(self, device_id: int = 0, nvidia_smi_device_id: Optional[int] = None):
         """
         Initialize profiler.
         

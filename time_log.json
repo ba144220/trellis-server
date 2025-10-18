@@ -45,6 +45,21 @@
       "assets/example_image/typical_vehicle_pirate_ship.png",
       "assets/example_image/typical_misc_gate.png"
     ],
-    "timestamp": "2025-10-17T21:35:56.603954"
+    "timestamp": "2025-10-17T21:35:56.603954",
+    "method": "multi_proc with 3 workers"
+  },
+  {
+    "time_taken": 88.76417922973633,
+    "image_paths": [
+      "assets/example_image/T.png",
+      "assets/example_image/typical_building_building.png",
+      "assets/example_image/typical_vehicle_biplane.png",
+      "assets/example_image/typical_vehicle_helicopter.png",
+      "assets/example_image/typical_vehicle_pirate_ship.png",
+      "assets/example_image/typical_misc_gate.png"
+    ],
+    "timestamp": "2025-10-17T23:41:14.682877",
+    "method": "optimized_v2_pipeline_parallelism_threading",
+    "num_postproc_workers": 2
   }
 ]
