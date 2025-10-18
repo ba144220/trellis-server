@@ -123,7 +123,7 @@ def profile_to_glb(profiler: Profiler, gaussian, mesh, simplify: float = 0.95, t
         texture = postprocessing_utils.bake_texture(
             vertices, faces, uvs,
             observations, masks, extrinsics, intrinsics,
-            texture_size=texture_size, mode='opt',
+            texture_size=texture_size, mode='fast',
             lambda_tv=0.01,
             verbose=True
         )
@@ -160,7 +160,7 @@ def main():
     profiler = Profiler(device_id=0, nvidia_smi_device_id=1)
     
     # Test image - using just one image for detailed profiling
-    image_path = "assets/example_image/T.png"
+    image_path = "assets/example_image/typical_vehicle_biplane.png"
     output_dir = "outputs"
     profiling_dir = "profiling"
     
