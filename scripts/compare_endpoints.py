@@ -56,16 +56,16 @@ def test_endpoint_worker(url, image_path, output_file, result_queue, request_tim
             # Extract timing from headers
             headers = response.headers
             total_time = float(headers.get("X-Total-Time", 0))
-            gpu_time = float(headers.get("X-GPU-Time", 0))
+            inference_time = float(headers.get("X-Inference-Time", 0))
             postproc_time = float(headers.get("X-PostProc-Time", 0))
             method = headers.get("X-Method", "unknown")
             
-            print(f"  [{image_path.name}] ✓ {total_time:.2f}s (GPU: {gpu_time:.2f}s, PostProc: {postproc_time:.2f}s, Request: {elapsed:.2f}s)")
+            print(f"  [{image_path.name}] ✓ {total_time:.2f}s (Inference: {inference_time:.2f}s, PostProc: {postproc_time:.2f}s, Request: {elapsed:.2f}s)")
             
             result_queue.put({
                 "success": True,
                 "total": total_time,
-                "gpu": gpu_time,
+                "inference": inference_time,
                 "postproc": postproc_time,
                 "request": elapsed,
                 "method": method,
@@ -183,10 +183,10 @@ def main():
         print(f"  Successful conversions: {len(baseline_success)}/{len(baseline_results)}")
         if baseline_success:
             baseline_avg = sum(r["total"] for r in baseline_success) / len(baseline_success)
-            baseline_gpu_avg = sum(r["gpu"] for r in baseline_success) / len(baseline_success)
+            baseline_inference_avg = sum(r["inference"] for r in baseline_success) / len(baseline_success)
             baseline_postproc_avg = sum(r["postproc"] for r in baseline_success) / len(baseline_success)
             print(f"  Average time per image: {baseline_avg:.2f}s")
-            print(f"    GPU: {baseline_gpu_avg:.2f}s, PostProc: {baseline_postproc_avg:.2f}s")
+            print(f"    Inference: {baseline_inference_avg:.2f}s, PostProc: {baseline_postproc_avg:.2f}s")
             print(f"  Total wall-clock time: {baseline_total_time:.2f}s")
     
     if optimized_results:
@@ -194,10 +194,10 @@ def main():
         print(f"  Successful conversions: {len(optimized_success)}/{len(optimized_results)}")
         if optimized_success:
             optimized_avg = sum(r["total"] for r in optimized_success) / len(optimized_success)
-            optimized_gpu_avg = sum(r["gpu"] for r in optimized_success) / len(optimized_success)
+            optimized_inference_avg = sum(r["inference"] for r in optimized_success) / len(optimized_success)
             optimized_postproc_avg = sum(r["postproc"] for r in optimized_success) / len(optimized_success)
             print(f"  Average time per image: {optimized_avg:.2f}s")
-            print(f"    GPU: {optimized_gpu_avg:.2f}s, PostProc: {optimized_postproc_avg:.2f}s")
+            print(f"    Inference: {optimized_inference_avg:.2f}s, PostProc: {optimized_postproc_avg:.2f}s")
             print(f"  Total wall-clock time: {optimized_total_time:.2f}s")
     
     # Show comparison only if both were tested

@@ -1,7 +1,7 @@
 import os
 os.environ['ATTN_BACKEND'] = 'flash-attn'
 os.environ['SPCONV_ALGO'] = 'native'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1,2'
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,14 +24,14 @@ import uvicorn
 
 # Global pipeline instance and worker infrastructure
 pipeline = None
-gpu_queue = None
+inference_queue = None
 postproc_queue = None
 result_dict = {}  # Maps request_id -> result
 result_dict_lock = Lock()  # Thread-safe access to result_dict
 workers_started = False
 
 # Start workers
-NUM_GPU_WORKERS = 1  # Usually 1 is best since GPU is serialized, but configurable for testing
+NUM_INFERENCE_WORKER = 2  # Usually 1 is best since GPU is serialized, but configurable for testing
 NUM_POSTPROC_WORKERS = 5
 
 def postprocessing_worker(postproc_queue, worker_id):
@@ -48,7 +48,7 @@ def postprocessing_worker(postproc_queue, worker_id):
                 postproc_queue.task_done()
                 break
             
-            request_id, gaussian, mesh, simplify, texture_size, gpu_time = item
+            request_id, gaussian, mesh, simplify, texture_size, inference_time = item
             print(f"[PostProc-{worker_id}] Processing request {request_id}")
             
             try:
@@ -72,7 +72,7 @@ def postprocessing_worker(postproc_queue, worker_id):
                     result_dict[request_id] = {
                         'status': 'success',
                         'tmp_path': tmp_path,
-                        'gpu_time': gpu_time,
+                        'inference_time': inference_time,
                         'postproc_time': postproc_time
                     }
                 
@@ -101,64 +101,64 @@ def postprocessing_worker(postproc_queue, worker_id):
     print(f"[PostProc-{worker_id}] Worker stopped")
 
 
-def gpu_generation_worker(gpu_queue, postproc_queue, pipeline, worker_id=1):
+def inference_worker(inference_queue, postproc_queue, pipeline, worker_id=1):
     """
     Persistent worker that handles GPU generation.
     Sends results to post-processing queue for parallel processing.
     """
-    print(f"[GPU-Worker-{worker_id}] Worker started")
+    print(f"[Inference-Worker-{worker_id}] Worker started")
     
     while True:
         try:
-            item = gpu_queue.get(timeout=1)
+            item = inference_queue.get(timeout=1)
             if item is None:
-                gpu_queue.task_done()
+                inference_queue.task_done()
                 break
             
             request_id, pil_image, seed, simplify, texture_size = item
-            print(f"[GPU-Worker-{worker_id}] Processing request {request_id}")
+            print(f"[Inference-Worker-{worker_id}] Processing request {request_id}")
             
             try:
-                gpu_start = time.time()
+                inference_start = time.time()
                 outputs = pipeline.run(pil_image, seed=seed)
-                gpu_time = time.time() - gpu_start
+                inference_time = time.time() - inference_start
                 
-                print(f"[GPU-Worker-{worker_id}] GPU generation for {request_id} completed in {gpu_time:.2f}s")
+                print(f"[Inference-Worker-{worker_id}] Inference for {request_id} completed in {inference_time:.2f}s")
                 
                 # Send to post-processing queue
                 gaussian = outputs['gaussian'][0]
                 mesh = outputs['mesh'][0]
                 
-                postproc_queue.put((request_id, gaussian, mesh, simplify, texture_size, gpu_time))
+                postproc_queue.put((request_id, gaussian, mesh, simplify, texture_size, inference_time))
                 
                 # Cleanup GPU memory
                 del outputs
                 torch.cuda.empty_cache()
                 
             except Exception as e:
-                print(f"[GPU-Worker-{worker_id}] Error processing request {request_id}: {e}")
+                print(f"[Inference-Worker-{worker_id}] Error processing request {request_id}: {e}")
                 with result_dict_lock:
                     result_dict[request_id] = {
                         'status': 'error',
                         'error': str(e)
                     }
             
-            gpu_queue.task_done()
+            inference_queue.task_done()
             
         except Empty:
             continue
         except Exception as e:
-            print(f"[GPU-Worker-{worker_id}] Unexpected error: {e}")
+            print(f"[Inference-Worker-{worker_id}] Unexpected error: {e}")
             import traceback
             traceback.print_exc()
     
-    print(f"[GPU-Worker-{worker_id}] Worker stopped")
+    print(f"[Inference-Worker-{worker_id}] Worker stopped")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load model on startup, start workers, and cleanup on shutdown"""
-    global pipeline, gpu_queue, postproc_queue, workers_started
+    global pipeline, inference_queue, postproc_queue, workers_started
     
     print("Loading TRELLIS pipeline...")
     pipeline = TrellisImageTo3DPipeline.from_pretrained("microsoft/TRELLIS-image-large")
@@ -166,23 +166,23 @@ async def lifespan(app: FastAPI):
     print("Pipeline loaded successfully!")
     
     # Setup queues
-    gpu_queue = Queue()
+    inference_queue = Queue()
     postproc_queue = Queue()
     
     
-    gpu_workers = []
+    inference_workers = []
     postproc_workers = []
     
     # Start GPU workers
-    for i in range(NUM_GPU_WORKERS):
+    for i in range(NUM_INFERENCE_WORKER):
         worker = Thread(
-            target=gpu_generation_worker,
-            args=(gpu_queue, postproc_queue, pipeline, i + 1),
+            target=inference_worker,
+            args=(inference_queue, postproc_queue, pipeline, i + 1),
             daemon=True,
-            name=f"GPU-Worker-{i+1}"
+            name=f"Inference-Worker-{i+1}"
         )
         worker.start()
-        gpu_workers.append(worker)
+        inference_workers.append(worker)
     
     # Start post-processing workers
     for i in range(NUM_POSTPROC_WORKERS):
@@ -196,14 +196,14 @@ async def lifespan(app: FastAPI):
         postproc_workers.append(worker)
     
     workers_started = True
-    print(f"Workers started successfully! ({NUM_GPU_WORKERS} GPU, {NUM_POSTPROC_WORKERS} PostProc)")
+    print(f"Workers started successfully! ({NUM_INFERENCE_WORKER} Inference, {NUM_POSTPROC_WORKERS} PostProc)")
     
     yield
     
     # Cleanup
     print("Shutting down workers...")
-    for _ in range(NUM_GPU_WORKERS):
-        gpu_queue.put(None)
+    for _ in range(NUM_INFERENCE_WORKER):
+        inference_queue.put(None)
     for _ in range(NUM_POSTPROC_WORKERS):
         postproc_queue.put(None)
     
@@ -264,9 +264,9 @@ async def convert_baseline(
         print(f"[BASELINE] Processing image: {image.filename}")
         
         # GPU generation
-        gpu_start = time.time()
+        inference_start = time.time()
         outputs = pipeline.run(pil_image, seed=seed)
-        gpu_time = time.time() - gpu_start
+        inference_time = time.time() - inference_start
         
         # CPU post-processing
         postproc_start = time.time()
@@ -289,7 +289,7 @@ async def convert_baseline(
         del outputs, glb
         torch.cuda.empty_cache()
         
-        print(f"[BASELINE] Total: {total_time:.2f}s (GPU: {gpu_time:.2f}s, PostProc: {postproc_time:.2f}s)")
+        print(f"[BASELINE] Total: {total_time:.2f}s (Inference: {inference_time:.2f}s, PostProc: {postproc_time:.2f}s)")
         
         # Return with timing headers
         return FileResponse(
@@ -298,7 +298,7 @@ async def convert_baseline(
             filename=f"{os.path.splitext(image.filename)[0]}_baseline.glb",
             headers={
                 "X-Total-Time": str(total_time),
-                "X-GPU-Time": str(gpu_time),
+                "X-Inference-Time": str(inference_time),
                 "X-PostProc-Time": str(postproc_time),
                 "X-Method": "baseline"
             }
@@ -351,8 +351,8 @@ async def convert_optimized(
         
         print(f"[OPTIMIZED] Request {request_id}: Processing image {image.filename}")
         
-        # Add to GPU queue
-        gpu_queue.put((request_id, pil_image, seed, simplify, texture_size))
+        # Add to inference queue
+        inference_queue.put((request_id, pil_image, seed, simplify, texture_size))
         
         # Wait for result (poll result_dict)
         timeout = 120  # 2 minute timeout
@@ -371,10 +371,10 @@ async def convert_optimized(
                     raise Exception(result['error'])
                 
                 total_time = time.time() - start_time
-                gpu_time = result['gpu_time']
+                inference_time = result['inference_time']
                 postproc_time = result['postproc_time']
                 
-                print(f"[OPTIMIZED] Request {request_id}: Total {total_time:.2f}s (GPU: {gpu_time:.2f}s, PostProc: {postproc_time:.2f}s)")
+                print(f"[OPTIMIZED] Request {request_id}: Total {total_time:.2f}s (Inference: {inference_time:.2f}s, PostProc: {postproc_time:.2f}s)")
                 
                 # Return with timing headers
                 return FileResponse(
@@ -383,7 +383,7 @@ async def convert_optimized(
                     filename=f"{os.path.splitext(image.filename)[0]}_optimized.glb",
                     headers={
                         "X-Total-Time": str(total_time),
-                        "X-GPU-Time": str(gpu_time),
+                        "X-Inference-Time": str(inference_time),
                         "X-PostProc-Time": str(postproc_time),
                         "X-Method": "optimized",
                         "X-Request-ID": request_id
