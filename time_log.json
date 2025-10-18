@@ -61,5 +61,61 @@
     "timestamp": "2025-10-17T23:41:14.682877",
     "method": "optimized_v2_pipeline_parallelism_threading",
     "num_postproc_workers": 2
+  },
+  {
+    "time_taken": 86.58178496360779,
+    "image_paths": [
+      "assets/example_image/T.png",
+      "assets/example_image/typical_building_building.png",
+      "assets/example_image/typical_vehicle_biplane.png",
+      "assets/example_image/typical_vehicle_helicopter.png",
+      "assets/example_image/typical_vehicle_pirate_ship.png",
+      "assets/example_image/typical_misc_gate.png"
+    ],
+    "timestamp": "2025-10-18T00:19:20.033486",
+    "method": "optimized_v2_pipeline_parallelism_threading",
+    "num_postproc_workers": 3
+  },
+  {
+    "time_taken": 87.52698278427124,
+    "image_paths": [
+      "assets/example_image/T.png",
+      "assets/example_image/typical_building_building.png",
+      "assets/example_image/typical_vehicle_biplane.png",
+      "assets/example_image/typical_vehicle_helicopter.png",
+      "assets/example_image/typical_vehicle_pirate_ship.png",
+      "assets/example_image/typical_misc_gate.png"
+    ],
+    "timestamp": "2025-10-18T00:25:19.039730",
+    "method": "optimized_v2_pipeline_parallelism_threading",
+    "num_postproc_workers": 3
+  },
+  {
+    "time_taken": 110.1077196598053,
+    "image_paths": [
+      "assets/example_image/T.png",
+      "assets/example_image/typical_building_building.png",
+      "assets/example_image/typical_vehicle_biplane.png",
+      "assets/example_image/typical_vehicle_helicopter.png",
+      "assets/example_image/typical_vehicle_pirate_ship.png",
+      "assets/example_image/typical_misc_gate.png"
+    ],
+    "timestamp": "2025-10-18T00:28:25.279829",
+    "method": "optimized_v2_pipeline_parallelism_threading",
+    "num_postproc_workers": 1
+  },
+  {
+    "time_taken": 86.59851622581482,
+    "image_paths": [
+      "assets/example_image/T.png",
+      "assets/example_image/typical_building_building.png",
+      "assets/example_image/typical_vehicle_biplane.png",
+      "assets/example_image/typical_vehicle_helicopter.png",
+      "assets/example_image/typical_vehicle_pirate_ship.png",
+      "assets/example_image/typical_misc_gate.png"
+    ],
+    "timestamp": "2025-10-18T00:30:58.327153",
+    "method": "optimized_v2_pipeline_parallelism_threading",
+    "num_postproc_workers": 4
   }
 ]
