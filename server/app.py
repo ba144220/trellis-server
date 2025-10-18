@@ -1,7 +1,6 @@
 import os
 os.environ['ATTN_BACKEND'] = 'flash-attn'
 os.environ['SPCONV_ALGO'] = 'native'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1,2'
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -106,3 +106,23 @@ Separating inference and postprocessing gives us another 25% speedup.
 ## Discussion - Can we increase the inference worker as well?
 
 I ran 2 inference workers and 4 postprocessing workers, it's almost the same as 1 inference worker and 4 postprocessing workers.
+
+
+
+# How to run the server?
+In one terminal, run the server:
+```bash
+CUDA_VISIBLE_DEVICES=1 # Set the GPU to use
+conda activate trellis
+python server/app.py
+```
+
+Wait until the server is ready.
+
+In another terminal, run the test script:
+```bash
+conda activate trellis
+python scripts/compare_endpoints.py
+```
+
+This will send several requests to the server with 1 second interval.

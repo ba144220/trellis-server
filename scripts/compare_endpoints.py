@@ -24,11 +24,11 @@ IMAGE_PATHS = [
     IMAGE_DIR / "typical_vehicle_biplane.png",
     IMAGE_DIR / "typical_vehicle_helicopter.png",
     IMAGE_DIR / "typical_vehicle_pirate_ship.png",
-    # IMAGE_DIR / "typical_misc_gate.png",
-    # IMAGE_DIR / "typical_creature_dragon.png",
-    # IMAGE_DIR / "typical_humanoid_goblin.png",
-    # IMAGE_DIR / "typical_misc_lantern.png",
-    # IMAGE_DIR / "typical_building_castle.png",
+    IMAGE_DIR / "typical_misc_gate.png",
+    IMAGE_DIR / "typical_creature_dragon.png",
+    IMAGE_DIR / "typical_humanoid_goblin.png",
+    IMAGE_DIR / "typical_misc_lantern.png",
+    IMAGE_DIR / "typical_building_castle.png",
 ]
 
 OUTPUT_DIR.mkdir(exist_ok=True)
