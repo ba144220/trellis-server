@@ -1,7 +1,7 @@
 import os
 os.environ['ATTN_BACKEND'] = 'flash-attn'
 os.environ['SPCONV_ALGO'] = 'native'
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,6 +29,10 @@ postproc_queue = None
 result_dict = {}  # Maps request_id -> result
 result_dict_lock = Lock()  # Thread-safe access to result_dict
 workers_started = False
+
+# Start workers
+NUM_GPU_WORKERS = 1  # Usually 1 is best since GPU is serialized, but configurable for testing
+NUM_POSTPROC_WORKERS = 5
 
 def postprocessing_worker(postproc_queue, worker_id):
     """
@@ -165,9 +169,6 @@ async def lifespan(app: FastAPI):
     gpu_queue = Queue()
     postproc_queue = Queue()
     
-    # Start workers
-    NUM_GPU_WORKERS = 1  # Usually 1 is best since GPU is serialized, but configurable for testing
-    NUM_POSTPROC_WORKERS = 4
     
     gpu_workers = []
     postproc_workers = []

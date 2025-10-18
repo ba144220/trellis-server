@@ -6,6 +6,7 @@ Sends requests with 1 second intervals without waiting for completion
 
 import requests
 import time
+import argparse
 from pathlib import Path
 from threading import Thread
 from queue import Queue
@@ -78,145 +79,137 @@ def test_endpoint_worker(url, image_path, output_file, result_queue, request_tim
         print(f"  [{image_path.name}] ✗ ERROR: {e}")
         result_queue.put({"success": False, "image": image_path.name, "error": str(e)})
 
+def test_endpoint(endpoint_name, endpoint_url):
+    """Test a single endpoint with all images"""
+    print(f"\n{'='*70}")
+    print(f"{endpoint_name.upper()} ENDPOINT - Sending requests...")
+    print("="*70)
+    
+    result_queue = Queue()
+    threads = []
+    start_time = time.time()
+    
+    for i, img_path in enumerate(IMAGE_PATHS):
+        output_name = f"{img_path.stem}_{endpoint_name.lower()}.glb"
+        request_time = time.time()
+        
+        thread = Thread(
+            target=test_endpoint_worker,
+            args=(
+                endpoint_url,
+                img_path,
+                OUTPUT_DIR / output_name,
+                result_queue,
+                request_time
+            ),
+            daemon=True
+        )
+        thread.start()
+        threads.append(thread)
+        
+        print(f"  [{img_path.name}] Request sent at T+{time.time() - start_time:.1f}s")
+        
+        # Wait 1 second before sending next request (except for last one)
+        if i < len(IMAGE_PATHS) - 1:
+            time.sleep(1.0)
+    
+    print(f"\nAll {endpoint_name.lower()} requests sent. Waiting for completion...")
+    
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+    
+    total_time = time.time() - start_time
+    
+    # Collect results
+    results = []
+    while not result_queue.empty():
+        results.append(result_queue.get())
+    
+    print(f"{endpoint_name} completed in {total_time:.2f}s")
+    
+    return results, total_time
+
 def main():
+    parser = argparse.ArgumentParser(
+        description="Test TRELLIS API endpoints with multiple images"
+    )
+    parser.add_argument(
+        "-e", "--endpoint",
+        choices=["baseline", "optimized", "both"],
+        default="both",
+        help="Which endpoint to test (default: both)"
+    )
+    args = parser.parse_args()
+    
     print("\n" + "="*70)
-    print("TRELLIS API Endpoint Comparison - Testing 10 Images")
+    if args.endpoint == "both":
+        print("TRELLIS API Endpoint Comparison - Testing Both Endpoints")
+    else:
+        print(f"TRELLIS API Endpoint Test - {args.endpoint.upper()}")
     print("="*70)
     print(f"Testing {len(IMAGE_PATHS)} images - sending with 1s intervals")
     print("Requests sent without waiting for completion (concurrent)")
     
-    # Test baseline endpoint with all images
-    print(f"\n{'='*70}")
-    print("BASELINE ENDPOINT - Sending requests...")
-    print("="*70)
+    baseline_results = None
+    baseline_total_time = None
+    optimized_results = None
+    optimized_total_time = None
     
-    baseline_queue = Queue()
-    baseline_threads = []
-    baseline_start = time.time()
-    
-    for i, img_path in enumerate(IMAGE_PATHS):
-        output_name = f"{img_path.stem}_baseline.glb"
-        request_time = time.time()
-        
-        thread = Thread(
-            target=test_endpoint_worker,
-            args=(
-                f"{API_BASE}/convert/baseline",
-                img_path,
-                OUTPUT_DIR / output_name,
-                baseline_queue,
-                request_time
-            ),
-            daemon=True
+    # Test endpoints based on user selection
+    if args.endpoint in ["baseline", "both"]:
+        baseline_results, baseline_total_time = test_endpoint(
+            "baseline", 
+            f"{API_BASE}/convert/baseline"
         )
-        thread.start()
-        baseline_threads.append(thread)
-        
-        print(f"  [{img_path.name}] Request sent at T+{time.time() - baseline_start:.1f}s")
-        
-        # Wait 1 second before sending next request (except for last one)
-        if i < len(IMAGE_PATHS) - 1:
-            time.sleep(1.0)
     
-    print(f"\nAll baseline requests sent. Waiting for completion...")
-    
-    # Wait for all threads to complete
-    for thread in baseline_threads:
-        thread.join()
-    
-    baseline_total_time = time.time() - baseline_start
-    
-    # Collect results
-    baseline_results = []
-    while not baseline_queue.empty():
-        baseline_results.append(baseline_queue.get())
-    
-    print(f"Baseline completed in {baseline_total_time:.2f}s")
-    
-    # Test optimized endpoint with all images
-    print(f"\n{'='*70}")
-    print("OPTIMIZED ENDPOINT - Sending requests...")
-    print("="*70)
-    
-    optimized_queue = Queue()
-    optimized_threads = []
-    optimized_start = time.time()
-    
-    for i, img_path in enumerate(IMAGE_PATHS):
-        output_name = f"{img_path.stem}_optimized.glb"
-        request_time = time.time()
-        
-        thread = Thread(
-            target=test_endpoint_worker,
-            args=(
-                f"{API_BASE}/convert/optimized",
-                img_path,
-                OUTPUT_DIR / output_name,
-                optimized_queue,
-                request_time
-            ),
-            daemon=True
+    if args.endpoint in ["optimized", "both"]:
+        optimized_results, optimized_total_time = test_endpoint(
+            "optimized",
+            f"{API_BASE}/convert/optimized"
         )
-        thread.start()
-        optimized_threads.append(thread)
-        
-        print(f"  [{img_path.name}] Request sent at T+{time.time() - optimized_start:.1f}s")
-        
-        # Wait 1 second before sending next request (except for last one)
-        if i < len(IMAGE_PATHS) - 1:
-            time.sleep(1.0)
-    
-    print(f"\nAll optimized requests sent. Waiting for completion...")
-    
-    # Wait for all threads to complete
-    for thread in optimized_threads:
-        thread.join()
-    
-    optimized_total_time = time.time() - optimized_start
-    
-    # Collect results
-    optimized_results = []
-    while not optimized_queue.empty():
-        optimized_results.append(optimized_queue.get())
-    
-    print(f"Optimized completed in {optimized_total_time:.2f}s")
     
     # Statistics
     print(f"\n{'='*70}")
     print("RESULTS SUMMARY")
     print("="*70)
     
-    baseline_success = [r for r in baseline_results if r["success"]]
-    optimized_success = [r for r in optimized_results if r["success"]]
+    baseline_success = [r for r in baseline_results if r["success"]] if baseline_results else []
+    optimized_success = [r for r in optimized_results if r["success"]] if optimized_results else []
     
+    # Show individual endpoint stats
+    if baseline_results:
+        print(f"\nBaseline endpoint:")
+        print(f"  Successful conversions: {len(baseline_success)}/{len(baseline_results)}")
+        if baseline_success:
+            baseline_avg = sum(r["total"] for r in baseline_success) / len(baseline_success)
+            baseline_gpu_avg = sum(r["gpu"] for r in baseline_success) / len(baseline_success)
+            baseline_postproc_avg = sum(r["postproc"] for r in baseline_success) / len(baseline_success)
+            print(f"  Average time per image: {baseline_avg:.2f}s")
+            print(f"    GPU: {baseline_gpu_avg:.2f}s, PostProc: {baseline_postproc_avg:.2f}s")
+            print(f"  Total wall-clock time: {baseline_total_time:.2f}s")
+    
+    if optimized_results:
+        print(f"\nOptimized endpoint:")
+        print(f"  Successful conversions: {len(optimized_success)}/{len(optimized_results)}")
+        if optimized_success:
+            optimized_avg = sum(r["total"] for r in optimized_success) / len(optimized_success)
+            optimized_gpu_avg = sum(r["gpu"] for r in optimized_success) / len(optimized_success)
+            optimized_postproc_avg = sum(r["postproc"] for r in optimized_success) / len(optimized_success)
+            print(f"  Average time per image: {optimized_avg:.2f}s")
+            print(f"    GPU: {optimized_gpu_avg:.2f}s, PostProc: {optimized_postproc_avg:.2f}s")
+            print(f"  Total wall-clock time: {optimized_total_time:.2f}s")
+    
+    # Show comparison only if both were tested
     if baseline_success and optimized_success:
-        print(f"\nSuccessful conversions:")
-        print(f"  Baseline:  {len(baseline_success)}/{len(baseline_results)}")
-        print(f"  Optimized: {len(optimized_success)}/{len(optimized_results)}")
-        
-        # Calculate averages
-        baseline_avg = sum(r["total"] for r in baseline_success) / len(baseline_success)
-        optimized_avg = sum(r["total"] for r in optimized_success) / len(optimized_success)
-        
-        baseline_gpu_avg = sum(r["gpu"] for r in baseline_success) / len(baseline_success)
-        optimized_gpu_avg = sum(r["gpu"] for r in optimized_success) / len(optimized_success)
-        
-        baseline_postproc_avg = sum(r["postproc"] for r in baseline_success) / len(baseline_success)
-        optimized_postproc_avg = sum(r["postproc"] for r in optimized_success) / len(optimized_success)
-        
-        print(f"\nAverage time per image:")
-        print(f"  Baseline:  {baseline_avg:.2f}s (GPU: {baseline_gpu_avg:.2f}s, PostProc: {baseline_postproc_avg:.2f}s)")
-        print(f"  Optimized: {optimized_avg:.2f}s (GPU: {optimized_gpu_avg:.2f}s, PostProc: {optimized_postproc_avg:.2f}s)")
-        
-        print(f"\nTotal wall-clock time (concurrent requests with 1s intervals):")
-        print(f"  Baseline:  {baseline_total_time:.2f}s")
-        print(f"  Optimized: {optimized_total_time:.2f}s")
-        print(f"  Note: Requests sent every 1s, processed concurrently")
-        
         # Comparison
         print(f"\n{'='*70}")
         print("COMPARISON")
         print("="*70)
+        
+        # Recalculate averages for comparison
+        baseline_avg = sum(r["total"] for r in baseline_success) / len(baseline_success)
+        optimized_avg = sum(r["total"] for r in optimized_success) / len(optimized_success)
         
         diff = baseline_avg - optimized_avg
         speedup = baseline_avg / optimized_avg if optimized_avg > 0 else 0
@@ -241,11 +234,13 @@ def main():
             print(f"✗ Baseline handles concurrent load {abs(total_diff):.2f}s faster overall")
         else:
             print(f"≈ Similar concurrent performance")
-        
-    else:
+    elif baseline_results and optimized_results:
+        # Both were tested but one failed
         print("\n✗ Cannot compare - some conversions failed")
-        print(f"  Baseline successful: {len(baseline_success)}/{len(baseline_results)}")
-        print(f"  Optimized successful: {len(optimized_success)}/{len(optimized_results)}")
+        if baseline_results:
+            print(f"  Baseline successful: {len(baseline_success)}/{len(baseline_results)}")
+        if optimized_results:
+            print(f"  Optimized successful: {len(optimized_success)}/{len(optimized_results)}")
     
     print(f"\n{'='*70}\n")
 

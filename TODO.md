@@ -39,7 +39,7 @@ For every feature or improvement, please add a log here.
 
 ## 2025-10-17 - Baseline
 Process one image at a time.
-Time taken: 121.36 seconds
+Time taken: 20.22 s/image
 
 ## 2025-10-17 - Process multiple images in parallel
 First attempt is to simply run two pipelines in parallel.
@@ -48,16 +48,15 @@ Time taken: 98.50 seconds
 The problem is that the two pipelines are copying the same model weights to the GPU, which is not efficient.
 
 The next attempt is just use one pipeline but spawn multiple workers to process the images.
-For 2 workers, time taken: 96.48 seconds
-For 3 workers, time taken: 90.98 seconds
-For 4 workers, time taken: 91.48 seconds
+For 2 workers, time taken: 16.08 seconds
+For 3 workers, time taken: 15.16 seconds
+For 4 workers, time taken: 15.24 seconds
 
 But both GPU memory and utilization are not fully utilized.
 
 ## 2025-10-17 - Detailed Profiling
 Ran detailed profiling on baseline with a single image to understand bottlenecks.
 
-**Total time: 39.80 seconds** (excluding one-time model loading: 16.68 seconds)
 
 Key findings:
 - **Texture Baking** is the biggest bottleneck: 6.23s (15.6% of total time)
@@ -86,3 +85,24 @@ Key findings:
 3. Reduce postprocessing overhead (fewer views for hole filling)
 
 See `profiling/PROFILING_REPORT.md` for detailed analysis.
+
+## 2025-10-17 - Use Fast Mode for Texture Baking
+Texture baking is the biggest bottleneck. We can use fast mode to reduce the time taken.
+
+We get 25% speedup by using fast mode.
+
+
+## 2025-10-17 - Separating Inference and Postprocessing
+
+Based on the profiling, the inference is compute-bound, but the postprocessing is memory-bound. 
+So we can separate the inference and postprocessing into two separate workers, hiding the latency.
+
+Another key finding is that postprocessing takes more time, so I run 2-3 postprocessing workers to increase the throughput. (the increase tops out at 3 workers)
+
+With fast mode texture baking and 3 postprocessing workers, the speed is 9.92 s/image.
+
+Separating inference and postprocessing gives us another 25% speedup.
+
+## Discussion - Can we increase the inference worker as well?
+
+I ran 2 inference workers and 4 postprocessing workers, it's almost the same as 1 inference worker and 4 postprocessing workers.
